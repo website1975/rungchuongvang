@@ -1,0 +1,7 @@
+{
+  "name": "Rung Chuông Vàng - Golden Bell Challenge",
+  "description": "A professional game show application for teachers to organize academic competitions in class with AI-powered question generation and deep explanations.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
