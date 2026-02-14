@@ -15,6 +15,8 @@ export enum GameStatus {
   FINISHED = 'FINISHED'
 }
 
+export type ExplanationMode = 'TEXT' | 'WHITEBOARD' | 'VOICE';
+
 export interface Student {
   id: string;
   name: string;
@@ -31,6 +33,7 @@ export interface GameState {
   timer: number;
   isTimerRunning: boolean;
   buzzedStudentId: string | null;
+  explanationMode?: ExplanationMode;
 }
 
 export type MessageType = 
@@ -39,4 +42,5 @@ export type MessageType =
   | { type: 'STUDENT_BUZZ', studentId: string, timestamp: number }
   | { type: 'STUDENT_ANSWER', studentId: string, optionIndex: number }
   | { type: 'TEACHER_ACTION', action: 'correct' | 'wrong' | 'reset', studentId: string }
+  | { type: 'SET_EXPLANATION_MODE', mode: ExplanationMode }
   | { type: 'REQUEST_SYNC' };
