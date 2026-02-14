@@ -17,6 +17,12 @@ export enum GameStatus {
 
 export type ExplanationMode = 'TEXT' | 'WHITEBOARD' | 'VOICE';
 
+export interface DrawingPath {
+  color: string;
+  width: number;
+  points: { x: number; y: number }[];
+}
+
 export interface Student {
   id: string;
   name: string;
@@ -24,6 +30,7 @@ export interface Student {
   score: number;
   lastBuzzedTime?: number;
   selectedOption?: number;
+  failedCurrentQuestion?: boolean;
 }
 
 export interface GameState {
@@ -33,7 +40,8 @@ export interface GameState {
   timer: number;
   isTimerRunning: boolean;
   buzzedStudentId: string | null;
-  explanationMode?: ExplanationMode;
+  explanationMode: ExplanationMode;
+  whiteboardPaths: DrawingPath[];
 }
 
 export type MessageType = 
@@ -41,6 +49,7 @@ export type MessageType =
   | { type: 'STUDENT_JOIN', student: Student }
   | { type: 'STUDENT_BUZZ', studentId: string, timestamp: number }
   | { type: 'STUDENT_ANSWER', studentId: string, optionIndex: number }
-  | { type: 'TEACHER_ACTION', action: 'correct' | 'wrong' | 'reset', studentId: string }
+  | { type: 'DRAW', path: DrawingPath }
+  | { type: 'CLEAR_CANVAS' }
   | { type: 'SET_EXPLANATION_MODE', mode: ExplanationMode }
   | { type: 'REQUEST_SYNC' };
