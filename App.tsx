@@ -31,6 +31,7 @@ const App: React.FC = () => {
   const [studentName, setStudentName] = useState('');
   const [myId] = useState(() => 'stu_' + Math.random().toString(36).substr(2, 5));
   const [isAiMode, setIsAiMode] = useState(false);
+  const [selectedOption, setSelectedOption] = useState<number | null>(null);
   
   const [gameState, setGameState] = useState<GameState>({
     questions: [],
@@ -49,49 +50,112 @@ const App: React.FC = () => {
   const bc = useRef<BroadcastChannel | null>(null);
   const timerInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const gameStateRef = useRef(gameState);
+  const studentsRef = useRef(students);
+  const roleRef = useRef(role);
+  const myIdRef = useRef(myId);
+  const studentNameRef = useRef(studentName);
+
+  useEffect(() => {
+    gameStateRef.current = gameState;
+    studentsRef.current = students;
+    roleRef.current = role;
+    myIdRef.current = myId;
+    studentNameRef.current = studentName;
+  }, [gameState, students, role, myId, studentName]);
+
+  const sendJoinMessage = useCallback(() => {
+    bc.current?.postMessage({
+      type: 'STUDENT_JOIN',
+      student: { id: myIdRef.current, name: studentNameRef.current, status: 'online', score: 0 }
+    });
+  }, []);
+
   useEffect(() => {
     bc.current = new BroadcastChannel(CHANNEL_NAME);
     
     bc.current.onmessage = (event: MessageEvent<MessageType>) => {
       const msg = event.data;
+      const currentRole = roleRef.current;
+
       switch (msg.type) {
         case 'REQUEST_SYNC':
-          if (role === 'TEACHER') {
-            bc.current?.postMessage({ type: 'SYNC_STATE', state: gameState, students: students });
+          if (currentRole === 'TEACHER') {
+            bc.current?.postMessage({ type: 'SYNC_STATE', state: gameStateRef.current, students: studentsRef.current });
+          } else if (currentRole === 'STUDENT') {
+            sendJoinMessage();
           }
           break;
+
         case 'SYNC_STATE':
-          setGameState(msg.state);
-          if (msg.students) setStudents(msg.students);
+          if (currentRole === 'STUDENT') {
+            setGameState(msg.state);
+            if (msg.students) {
+              setStudents(msg.students);
+              const amIInList = msg.students.some(s => s.id === myIdRef.current);
+              if (!amIInList) sendJoinMessage();
+            }
+          }
           break;
+
         case 'STUDENT_JOIN':
-          if (role === 'TEACHER') {
+          if (currentRole === 'TEACHER') {
             setStudents(prev => {
               if (prev.find(s => s.id === msg.student.id)) return prev;
               const newStudents = [...prev, msg.student];
-              bc.current?.postMessage({ type: 'SYNC_STATE', state: gameState, students: newStudents });
+              bc.current?.postMessage({ type: 'SYNC_STATE', state: gameStateRef.current, students: newStudents });
               return newStudents;
             });
           }
           break;
+
         case 'STUDENT_BUZZ':
-          if (role === 'TEACHER' && gameState.isTimerRunning && !gameState.buzzedStudentId) {
+          if (currentRole === 'TEACHER' && gameStateRef.current.isTimerRunning && !gameStateRef.current.buzzedStudentId) {
             handleStudentBuzz(msg.studentId, msg.timestamp);
+          }
+          break;
+
+        case 'STUDENT_ANSWER':
+          if (currentRole === 'TEACHER') {
+            handleStudentAnswer(msg.studentId, msg.optionIndex);
           }
           break;
       }
     };
-    if (role === 'STUDENT') bc.current.postMessage({ type: 'REQUEST_SYNC' });
+
+    if (role !== 'SELECT') {
+      bc.current.postMessage({ type: 'REQUEST_SYNC' });
+    }
+
     return () => bc.current?.close();
-  }, [role, gameState, students]);
+  }, [role, sendJoinMessage]);
 
   const handleStudentBuzz = (id: string, time: number) => {
     if (timerInterval.current) clearInterval(timerInterval.current);
-    const newState = { ...gameState, buzzedStudentId: id, isTimerRunning: false };
-    const newStudents = students.map(s => s.id === id ? { ...s, status: 'buzzed' as const, lastBuzzedTime: time } : s);
+    const newState = { ...gameStateRef.current, buzzedStudentId: id, isTimerRunning: false };
+    const newStudents = studentsRef.current.map(s => s.id === id ? { ...s, status: 'answering' as const, lastBuzzedTime: time } : s);
     setGameState(newState);
     setStudents(newStudents);
     bc.current?.postMessage({ type: 'SYNC_STATE', state: newState, students: newStudents });
+  };
+
+  const handleStudentAnswer = (id: string, optionIndex: number) => {
+    const currentQ = gameStateRef.current.questions[gameStateRef.current.currentQuestionIndex];
+    const isCorrect = currentQ.correctAnswer === optionIndex;
+    
+    const newStudents = studentsRef.current.map(s => {
+      if (s.id === id) {
+        return { 
+          ...s, 
+          status: (isCorrect ? 'correct' : 'wrong') as any,
+          score: isCorrect ? s.score + 10 : s.score,
+          selectedOption: optionIndex
+        };
+      }
+      return s;
+    });
+    setStudents(newStudents);
+    bc.current?.postMessage({ type: 'SYNC_STATE', state: gameStateRef.current, students: newStudents });
   };
 
   const judgeStudent = (id: string, isCorrect: boolean) => {
@@ -112,9 +176,10 @@ const App: React.FC = () => {
   const startTimer = () => {
     if (timerInterval.current) clearInterval(timerInterval.current);
     const startState = { ...gameState, isTimerRunning: true, buzzedStudentId: null };
-    const resetStudents = students.map(s => ({ ...s, status: 'online' as const }));
+    const resetStudents = students.map(s => ({ ...s, status: 'online' as const, selectedOption: undefined }));
     setGameState(startState);
     setStudents(resetStudents);
+    setSelectedOption(null);
     bc.current?.postMessage({ type: 'SYNC_STATE', state: startState, students: resetStudents });
     
     timerInterval.current = setInterval(() => {
@@ -123,11 +188,11 @@ const App: React.FC = () => {
         if (nextTimer <= 0) {
           if (timerInterval.current) clearInterval(timerInterval.current);
           const timeoutState = { ...prev, timer: 0, isTimerRunning: false };
-          bc.current?.postMessage({ type: 'SYNC_STATE', state: timeoutState, students: students });
+          bc.current?.postMessage({ type: 'SYNC_STATE', state: timeoutState, students: studentsRef.current });
           return timeoutState;
         }
         const activeState = { ...prev, timer: nextTimer };
-        bc.current?.postMessage({ type: 'SYNC_STATE', state: activeState, students: students });
+        bc.current?.postMessage({ type: 'SYNC_STATE', state: activeState, students: studentsRef.current });
         return activeState;
       });
     }, 1000);
@@ -135,12 +200,15 @@ const App: React.FC = () => {
 
   const handleStartGame = async () => {
     setLoading(true);
-    const qs = await generateQuestions(topic);
-    if (qs.length > 0) {
-      setIsAiMode(true);
-      startGameWithQuestions(qs);
+    try {
+      const qs = await generateQuestions(topic);
+      if (qs.length > 0) {
+        setIsAiMode(true);
+        startGameWithQuestions(qs);
+      }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleStartWithSample = () => {
@@ -194,7 +262,8 @@ const App: React.FC = () => {
     }
     setGameState(newState);
     setExplanationText(null);
-    const resetStudents = students.map(s => ({ ...s, status: 'online' as const }));
+    setSelectedOption(null);
+    const resetStudents = students.map(s => ({ ...s, status: 'online' as const, selectedOption: undefined }));
     setStudents(resetStudents);
     bc.current?.postMessage({ type: 'SYNC_STATE', state: newState, students: resetStudents });
   };
@@ -202,15 +271,16 @@ const App: React.FC = () => {
   const joinGame = () => {
     if (!studentName.trim()) return;
     setRole('STUDENT');
-    bc.current?.postMessage({
-      type: 'STUDENT_JOIN',
-      student: { id: myId, name: studentName, status: 'online', score: 0 }
-    });
   };
 
   const studentBuzz = () => {
     if (!gameState.isTimerRunning || gameState.buzzedStudentId) return;
     bc.current?.postMessage({ type: 'STUDENT_BUZZ', studentId: myId, timestamp: Date.now() });
+  };
+
+  const submitAnswer = () => {
+    if (selectedOption === null) return;
+    bc.current?.postMessage({ type: 'STUDENT_ANSWER', studentId: myId, optionIndex: selectedOption });
   };
 
   const handleExit = () => {
@@ -268,6 +338,8 @@ const App: React.FC = () => {
 
   if (role === 'TEACHER') {
     const currentQ = gameState.questions[gameState.currentQuestionIndex];
+    const buzzedStudent = students.find(s => s.id === gameState.buzzedStudentId);
+
     return (
       <div className="h-screen bg-gray-50 flex flex-col">
         <header className="red-gradient text-white p-3 shadow-md flex justify-between items-center z-10 flex-shrink-0">
@@ -338,6 +410,11 @@ const App: React.FC = () => {
                     )}
                   </div>
                 </div>
+                {buzzedStudent && buzzedStudent.status === 'answering' && (
+                  <div className="bg-white p-4 rounded-2xl shadow-md border-2 border-blue-500 text-center animate-pulse">
+                    <p className="text-blue-600 font-bold text-sm"><i className="fas fa-keyboard"></i> {buzzedStudent.name} ĐANG CHỌN ĐÁP ÁN...</p>
+                  </div>
+                )}
                 {explanationText && (
                   <div className="bg-purple-900 text-white p-5 rounded-2xl shadow-xl animate-fade-in border-l-4 border-yellow-400">
                     <h4 className="text-sm font-bold mb-2 flex items-center gap-2 text-yellow-400 uppercase tracking-tighter"><i className="fas fa-graduation-cap"></i> Giải đáp chi tiết:</h4>
@@ -346,31 +423,26 @@ const App: React.FC = () => {
                 )}
               </div>
             )}
-            {gameState.status === GameStatus.FINISHED && (
-               <div className="text-center mt-10">
-                  <i className="fas fa-trophy text-7xl text-yellow-500 mb-4 drop-shadow-lg animate-bounce"></i>
-                  <h2 className="text-3xl font-bungee text-red-800">KẾT THÚC!</h2>
-                  <button onClick={handleExit} className="mt-6 bg-red-600 text-white px-8 py-3 rounded-full font-bungee text-base shadow-lg hover:scale-110 transition-all">TRẬN MỚI</button>
-               </div>
-            )}
           </main>
           <aside className="w-72 md:w-80 bg-white border-l shadow-2xl flex flex-col z-20 flex-shrink-0">
             <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
               <h3 className="text-sm font-black text-gray-800 flex items-center gap-2"><i className="fas fa-users text-red-600"></i> GIÁM SÁT</h3>
-              <button onClick={requestSync} className="text-blue-600 hover:text-blue-800 text-[10px] font-bold uppercase">Sync</button>
+              <button onClick={requestSync} className="text-blue-600 hover:text-blue-800 text-[10px] font-bold uppercase">Làm mới DS</button>
             </div>
             <div className="flex-1 overflow-y-auto p-3 space-y-3">
               {students.length === 0 ? (
                  <div className="text-center py-10 opacity-30"><i className="fas fa-user-clock text-3xl mb-2"></i><p className="text-xs font-bold italic">Đang chờ thí sinh...</p></div>
               ) : (
                 students.sort((a,b) => b.score - a.score).map((s, idx) => (
-                  <div key={s.id} className={`p-3 rounded-xl border transition-all duration-300 ${s.status === 'buzzed' ? 'border-yellow-400 bg-yellow-50 shadow-md ring-2 ring-yellow-200' : s.status === 'correct' ? 'border-green-400 bg-green-50' : s.status === 'wrong' ? 'border-red-400 bg-red-50' : 'border-gray-100 bg-white shadow-sm'}`}>
-                    <div className="flex justify-between items-center mb-2">
+                  <div key={s.id} className={`p-3 rounded-xl border transition-all duration-300 ${s.status === 'answering' || s.status === 'buzzed' ? 'border-yellow-400 bg-yellow-50 shadow-md ring-2 ring-yellow-200' : s.status === 'correct' ? 'border-green-400 bg-green-50' : s.status === 'wrong' ? 'border-red-400 bg-red-50' : 'border-gray-100 bg-white shadow-sm'}`}>
+                    <div className="flex justify-between items-center mb-1">
                       <div className="flex items-center gap-2"><span className="text-[10px] font-bold bg-gray-100 w-5 h-5 rounded-full flex items-center justify-center">#{idx + 1}</span><span className="font-bold text-gray-800 text-xs truncate max-w-[100px]">{s.name}</span></div>
                       <span className="font-bungee text-red-600 text-sm">{s.score}đ</span>
                     </div>
-                    {s.status === 'buzzed' && (
-                      <div className="flex gap-1">
+                    {s.status === 'correct' && <p className="text-[9px] text-green-600 font-bold">Đáp án: {String.fromCharCode(65 + (s.selectedOption ?? 0))}</p>}
+                    {s.status === 'wrong' && <p className="text-[9px] text-red-600 font-bold">Đáp án: {String.fromCharCode(65 + (s.selectedOption ?? 0))}</p>}
+                    {(s.status === 'buzzed' || s.status === 'answering') && (
+                      <div className="flex gap-1 mt-2">
                         <button onClick={() => judgeStudent(s.id, true)} className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-1.5 rounded-lg text-[10px]"><i className="fas fa-check"></i> ĐÚNG</button>
                         <button onClick={() => judgeStudent(s.id, false)} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-1.5 rounded-lg text-[10px]"><i className="fas fa-times"></i> SAI</button>
                       </div>
@@ -390,6 +462,7 @@ const App: React.FC = () => {
   const someoneElseBuzzed = gameState.buzzedStudentId && !isMeBuzzed;
   const currentQ = gameState.questions[gameState.currentQuestionIndex];
   const canBuzz = gameState.isTimerRunning && !gameState.buzzedStudentId;
+  const isAnswering = myStatus?.status === 'answering';
 
   return (
     <div className="h-screen bg-gray-100 flex flex-col overflow-y-auto">
@@ -421,15 +494,42 @@ const App: React.FC = () => {
                  <div className="mt-3 text-[10px] font-black text-blue-600 bg-blue-50 py-1 px-4 rounded-full inline-flex items-center gap-1 animate-bounce"><i className="fas fa-clock"></i> CHỜ GIÁO VIÊN BẤM GIỜ</div>
                )}
             </div>
-            <div className="relative">
-              {canBuzz && (<div className="absolute inset-0 bg-red-500/20 rounded-full animate-ping"></div>)}
-              <button onClick={studentBuzz} disabled={!canBuzz} className={`w-48 h-48 md:w-56 md:h-56 rounded-full flex flex-col items-center justify-center shadow-2xl transition-all active:scale-95 border-[8px] relative z-10 ${isMeBuzzed ? 'bg-green-600 border-green-300' : someoneElseBuzzed ? 'bg-gray-400 border-gray-300 grayscale opacity-50' : canBuzz ? 'bg-red-600 border-red-400 hover:scale-105' : 'bg-gray-300 border-gray-200'}`}>
-                <i className={`fas fa-bell text-5xl md:text-6xl text-white mb-2 ${canBuzz ? 'bell-shake' : ''}`}></i>
-                <span className="text-white font-bungee text-sm px-4 text-center">
-                  {isMeBuzzed ? 'ĐÃ GIÀNH QUYỀN!' : someoneElseBuzzed ? 'BẠN KHÁC BẤM TRƯỚC' : canBuzz ? 'RUNG CHUÔNG!' : 'CHỜ HIỆU LỆNH'}
-                </span>
-              </button>
-            </div>
+
+            {/* Area for selection after buzzing */}
+            {isMeBuzzed && isAnswering ? (
+              <div className="w-full bg-white p-6 rounded-3xl shadow-2xl border-4 border-blue-500 animate-fade-in flex flex-col gap-3">
+                <h4 className="text-blue-800 font-black text-center text-sm uppercase mb-2">CHỌN ĐÁP ÁN CỦA BẠN</h4>
+                <div className="grid grid-cols-1 gap-2">
+                  {currentQ.options.map((opt, i) => (
+                    <button 
+                      key={i} 
+                      onClick={() => setSelectedOption(i)} 
+                      className={`p-3 rounded-xl border-2 text-left text-xs font-bold transition-all flex items-center gap-3 ${selectedOption === i ? 'bg-blue-600 border-blue-700 text-white shadow-lg scale-105' : 'bg-gray-50 border-gray-200 text-gray-700'}`}
+                    >
+                      <span className={`w-6 h-6 rounded-full flex items-center justify-center font-black ${selectedOption === i ? 'bg-white text-blue-600' : 'bg-white shadow-sm'}`}>{String.fromCharCode(65 + i)}</span>
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+                <button 
+                  onClick={submitAnswer} 
+                  disabled={selectedOption === null}
+                  className="mt-4 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white font-bungee py-3 rounded-xl shadow-lg transition-all text-sm"
+                >
+                  XÁC NHẬN ĐÁP ÁN
+                </button>
+              </div>
+            ) : (
+              <div className="relative">
+                {canBuzz && (<div className="absolute inset-0 bg-red-500/20 rounded-full animate-ping"></div>)}
+                <button onClick={studentBuzz} disabled={!canBuzz} className={`w-48 h-48 md:w-56 md:h-56 rounded-full flex flex-col items-center justify-center shadow-2xl transition-all active:scale-95 border-[8px] relative z-10 ${isMeBuzzed ? 'bg-green-600 border-green-300' : someoneElseBuzzed ? 'bg-gray-400 border-gray-300 grayscale opacity-50' : canBuzz ? 'bg-red-600 border-red-400 hover:scale-105' : 'bg-gray-300 border-gray-200'}`}>
+                  <i className={`fas fa-bell text-5xl md:text-6xl text-white mb-2 ${canBuzz ? 'bell-shake' : ''}`}></i>
+                  <span className="text-white font-bungee text-sm px-4 text-center">
+                    {isMeBuzzed ? 'ĐÃ GIÀNH QUYỀN!' : someoneElseBuzzed ? 'BẠN KHÁC BẤM TRƯỚC' : canBuzz ? 'RUNG CHUÔNG!' : 'CHỜ HIỆU LỆNH'}
+                  </span>
+                </button>
+              </div>
+            )}
           </div>
         )}
         {gameState.status === GameStatus.EXPLAINING && (
@@ -449,7 +549,7 @@ const App: React.FC = () => {
           </div>
         )}
       </main>
-      <footer className="p-2 bg-gray-200 text-center text-gray-500 text-[8px] font-black uppercase tracking-[0.2em] flex-shrink-0">Rung Chuông Vàng Pro v2.1 • Live Sync</footer>
+      <footer className="p-2 bg-gray-200 text-center text-gray-500 text-[8px] font-black uppercase tracking-[0.2em] flex-shrink-0">Rung Chuông Vàng Pro v2.2 • Live Sync</footer>
       <style>{`
         @keyframes yellow-glow {
           0%, 100% { filter: drop-shadow(0 0 5px rgba(234, 179, 8, 0.3)); }
