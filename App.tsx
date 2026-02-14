@@ -7,7 +7,7 @@ import Timer from './components/Timer';
 const INITIAL_TIMER = 15;
 const CHANNEL_NAME = 'rung_chuong_vang_pro';
 
-// Bộ đề mẫu soạn sẵn cho Giáo viên thử nghiệm
+// Bộ đề mẫu soạn sẵn cho Giáo viên thử nghiệm (Không dùng AI)
 const SAMPLE_QUESTIONS: Question[] = [
   {
     id: 1,
@@ -31,6 +31,7 @@ const App: React.FC = () => {
   const [role, setRole] = useState<'SELECT' | 'TEACHER' | 'STUDENT'>('SELECT');
   const [studentName, setStudentName] = useState('');
   const [myId] = useState(() => 'stu_' + Math.random().toString(36).substr(2, 5));
+  const [isAiMode, setIsAiMode] = useState(false);
   
   const [gameState, setGameState] = useState<GameState>({
     questions: [],
@@ -137,12 +138,14 @@ const App: React.FC = () => {
     setLoading(true);
     const qs = await generateQuestions(topic);
     if (qs.length > 0) {
+      setIsAiMode(true);
       startGameWithQuestions(qs);
     }
     setLoading(false);
   };
 
   const handleStartWithSample = () => {
+    setIsAiMode(false);
     startGameWithQuestions(SAMPLE_QUESTIONS);
   };
 
@@ -162,14 +165,18 @@ const App: React.FC = () => {
 
   const handleExplain = async () => {
     const q = gameState.questions[gameState.currentQuestionIndex];
-    if (q.explanation) {
+    
+    // NẾU CÓ SẴN LỜI GIẢI (BỘ ĐỀ MẪU), HIỂN THỊ LUÔN KHÔNG GỌI AI
+    if (q.explanation && q.explanation.trim() !== "") {
       setExplanationText(q.explanation);
     } else {
+      // CHỈ KHI KHÔNG CÓ LỜI GIẢI MỚI GỌI AI
       setLoading(true);
       const text = await getDeepExplanation(q);
       setExplanationText(text);
       setLoading(false);
     }
+    
     const newState = { ...gameState, status: GameStatus.EXPLAINING };
     setGameState(newState);
     bc.current?.postMessage({ type: 'SYNC_STATE', state: newState, students: students });
@@ -211,7 +218,6 @@ const App: React.FC = () => {
     bc.current?.postMessage({ type: 'STUDENT_BUZZ', studentId: myId, timestamp: Date.now() });
   };
 
-  // Hàm thoát sạch sẽ không reload trang
   const handleExit = () => {
     if (timerInterval.current) clearInterval(timerInterval.current);
     setRole('SELECT');
@@ -226,6 +232,7 @@ const App: React.FC = () => {
     setStudents([]);
     setExplanationText(null);
     setLoading(false);
+    setIsAiMode(false);
   };
 
   if (role === 'SELECT') {
@@ -265,7 +272,15 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col overflow-hidden">
         <header className="red-gradient text-white p-4 shadow-xl flex justify-between items-center z-10">
-          <div className="flex items-center gap-4"><i className="fas fa-desktop text-2xl"></i><h2 className="text-xl font-bungee">Teacher Console</h2></div>
+          <div className="flex items-center gap-4">
+            <i className="fas fa-desktop text-2xl"></i>
+            <h2 className="text-xl font-bungee">Teacher Console</h2>
+            {gameState.status !== GameStatus.LOBBY && (
+              <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${isAiMode ? 'bg-purple-500 text-white' : 'bg-blue-500 text-white'}`}>
+                {isAiMode ? 'Chế độ AI' : 'Bộ đề soạn sẵn'}
+              </span>
+            )}
+          </div>
           <div className="flex gap-4 items-center">
             <span className="bg-white/20 px-4 py-1 rounded-full font-bold">{students.length} Thí sinh online</span>
             <button onClick={handleExit} className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl transition-all flex items-center gap-2 font-bold">
@@ -281,8 +296,8 @@ const App: React.FC = () => {
                   <h3 className="text-3xl font-bold mb-6 text-gray-800">Khởi tạo trận đấu</h3>
                   <div className="space-y-6">
                     <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100">
-                      <h4 className="font-bold text-blue-800 mb-2 flex items-center gap-2"><i className="fas fa-vial"></i> Chế độ thử nghiệm</h4>
-                      <p className="text-sm text-blue-600 mb-4">Sử dụng bộ đề soạn sẵn gồm 2 câu hỏi để kiểm tra tính năng đồng bộ và chuông bấm.</p>
+                      <h4 className="font-bold text-blue-800 mb-2 flex items-center gap-2"><i className="fas fa-vial"></i> Chế độ dùng thử (Không cần Key)</h4>
+                      <p className="text-sm text-blue-600 mb-4">Sử dụng bộ đề soạn sẵn để kiểm tra hệ thống. Không cần kết nối AI Gemini.</p>
                       <button onClick={handleStartWithSample} className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-all shadow-md">DÙNG BỘ ĐỀ MẪU (2 CÂU)</button>
                     </div>
                     <div className="relative">
