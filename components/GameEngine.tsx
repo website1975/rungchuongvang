@@ -4,7 +4,6 @@ import { GameState, Round, Teacher, PhysicsProblem } from '../types';
 import ProblemCard from './ProblemCard';
 import AnswerInput from './AnswerInput';
 import LatexRenderer from './LatexRenderer';
-import Whiteboard from './Whiteboard';
 import { supabase } from '../services/supabaseService';
 import ConfirmModal from './ConfirmModal';
 
@@ -38,7 +37,6 @@ const GameEngine: React.FC<GameEngineProps> = ({
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   
   const [isEliminatedFromCurrent, setIsEliminatedFromCurrent] = useState(false);
-  const [isTeacherWhiteboardActive, setIsTeacherWhiteboardActive] = useState(false);
   const [teacherForcedExplanation, setTeacherForcedExplanation] = useState(false);
   
   const [buzzerWinner, setBuzzerWinner] = useState<string | null>(null);
@@ -62,7 +60,15 @@ const GameEngine: React.FC<GameEngineProps> = ({
     });
 
     channel
-      .on('presence', { event: 'sync' }, () => {})
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+        const hasTeacher = Object.keys(state).some(key => key.includes('teacher'));
+        if (!hasTeacher && gameState !== 'LOBBY') {
+           // If teacher leaves, we might want to notify or exit after a delay
+           // For now, let's just log it or show a message if needed
+           console.log("Teacher has left the room");
+        }
+      })
       .on('broadcast', { event: 'buzzer_pressed' }, ({ payload }) => {
         if (!buzzerWinnerRef.current) {
           buzzerWinnerRef.current = payload.winnerName;
@@ -84,7 +90,6 @@ const GameEngine: React.FC<GameEngineProps> = ({
       .on('broadcast', { event: 'teacher_next_question' }, ({ payload }) => {
         setCurrentProblemIdx(payload.nextIndex);
         setIsEliminatedFromCurrent(false);
-        setIsTeacherWhiteboardActive(false);
         setTeacherForcedExplanation(false);
         setGameState('STARTING_ROUND'); 
       })
@@ -103,9 +108,6 @@ const GameEngine: React.FC<GameEngineProps> = ({
         setTeacherForcedExplanation(true);
         setIsAnswered(true);
         setGameState('FEEDBACK');
-      })
-      .on('broadcast', { event: 'toggle_whiteboard' }, ({ payload }) => {
-        setIsTeacherWhiteboardActive(payload.isActive);
       })
       .on('broadcast', { event: 'teacher_reset_room' }, () => onExit())
       .subscribe(async (status) => {
@@ -127,7 +129,6 @@ const GameEngine: React.FC<GameEngineProps> = ({
       setBuzzerWinner(null);
       buzzerWinnerRef.current = null;
       setIsEliminatedFromCurrent(false);
-      setIsTeacherWhiteboardActive(false);
       setTeacherForcedExplanation(false);
       setTimer(currentProblem?.timeLimit || 40);
       setGameState('WAITING_FOR_BUZZER');
@@ -171,7 +172,7 @@ const GameEngine: React.FC<GameEngineProps> = ({
 
   useEffect(() => {
     let interval: number;
-    if ((gameState === 'ANSWERING' || gameState === 'WAITING_FOR_BUZZER') && timer > 0 && !isAnswered && !isTeacherWhiteboardActive) {
+    if ((gameState === 'ANSWERING' || gameState === 'WAITING_FOR_BUZZER') && timer > 0 && !isAnswered) {
       interval = window.setInterval(() => {
         setTimer(prev => {
           if (prev <= 1) {
@@ -183,7 +184,7 @@ const GameEngine: React.FC<GameEngineProps> = ({
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [gameState, timer, isAnswered, handleAnswerSubmit, buzzerWinner, playerName, isTeacherWhiteboardActive]);
+  }, [gameState, timer, isAnswered, handleAnswerSubmit, buzzerWinner, playerName]);
 
   if (gameState === 'ROUND_INTRO') {
     return (
@@ -235,13 +236,7 @@ const GameEngine: React.FC<GameEngineProps> = ({
 
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 max-w-screen-2xl mx-auto w-full mb-8 h-auto overflow-hidden">
         <div className="lg:col-span-7 h-full">
-            {isTeacherWhiteboardActive ? (
-              <div className="bg-white rounded-[2.5rem] p-4 shadow-sm h-[600px] border border-slate-100">
-                 <div className="h-full bg-slate-950 rounded-[2rem] overflow-hidden">
-                    <Whiteboard isTeacher={false} channel={channelRef.current} roomCode={matchData.roomCode || '---'} />
-                 </div>
-              </div>
-            ) : currentProblem ? (
+            {currentProblem ? (
               <ProblemCard problem={currentProblem} isPaused={gameState === 'FEEDBACK'} />
             ) : (
               <div className="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-100 h-full flex items-center justify-center">
@@ -255,12 +250,7 @@ const GameEngine: React.FC<GameEngineProps> = ({
                 <h4 className="text-slate-400 font-bold italic uppercase text-[11px] tracking-widest">KHU VỰC PHẢN ỨNG:</h4>
             </div>
 
-            {isTeacherWhiteboardActive ? (
-                <div className="py-20 flex flex-col items-center justify-center text-center">
-                    <div className="text-7xl mb-6">👨‍🏫</div>
-                    <h3 className="text-2xl font-bold text-slate-800 uppercase italic">THẦY ĐANG GIẢNG BÀI</h3>
-                </div>
-            ) : isEliminatedFromCurrent && gameState !== 'FEEDBACK' ? (
+            {isEliminatedFromCurrent && gameState !== 'FEEDBACK' ? (
                  <div className="py-20 flex flex-col items-center justify-center text-center bg-slate-50 rounded-[2rem] border-2 border-dashed border-red-100">
                     <div className="text-7xl mb-6 opacity-30">🔔</div>
                     <h4 className="text-2xl font-bold text-red-500 uppercase italic text-center">BẠN ĐÃ BỊ LOẠI</h4>
