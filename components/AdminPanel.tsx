@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { PhysicsProblem, Round, Difficulty, QuestionType, DisplayChallenge, GameState, GameSettings, InteractiveMechanic, Player } from '../types';
 import LatexRenderer from './LatexRenderer';
+import Whiteboard from './Whiteboard';
 import { supabase } from '../services/supabaseService';
 import ConfirmModal from './ConfirmModal';
 
@@ -37,7 +38,6 @@ interface StudentStat {
   score: number;
   status: 'Waiting' | 'Answering' | 'Correct' | 'Incorrect';
   answers: Record<number, string>;
-  isOnline: boolean;
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = (props) => {
@@ -50,6 +50,7 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
   const [isLiveGameActive, setIsLiveGameActive] = useState(false);
   const [isShowingIntro, setIsShowingIntro] = useState(false);
   const [liveProblemIdx, setLiveProblemIdx] = useState(0); 
+  const [isWhiteboardActive, setIsWhiteboardActive] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const controlChannelRef = useRef<any>(null);
 
@@ -61,6 +62,7 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
       setIsShowingIntro(false);
       setLiveProblemIdx(0);
       setStudentStats({});
+      setIsWhiteboardActive(false);
     }
   }, [liveSessionKey, adminTab]);
 
@@ -74,22 +76,15 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
       channel
         .on('presence', { event: 'sync' }, () => {
           const state = channel.presenceState();
-          const currentPlayers = Object.keys(state)
+          const players = Object.keys(state)
             .filter(key => !key.includes('teacher'))
             .map(key => key.split('_')[0]);
           
           setStudentStats(prev => {
             const next = { ...prev };
-            // Mark everyone as offline first
-            Object.keys(next).forEach(name => {
-              next[name].isOnline = false;
-            });
-            // Mark current players as online and add new ones
-            currentPlayers.forEach(p => {
+            players.forEach(p => {
               if (!next[p]) {
-                next[p] = { name: p, score: 0, status: 'Waiting', answers: {}, isOnline: true };
-              } else {
-                next[p].isOnline = true;
+                next[p] = { name: p, score: 0, status: 'Waiting', answers: {} };
               }
             });
             return next;
@@ -199,6 +194,14 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
     notify("Đã hiển thị đáp án cho cả lớp!");
   };
 
+  const toggleWhiteboard = () => {
+    const newState = !isWhiteboardActive;
+    setIsWhiteboardActive(newState);
+    controlChannelRef.current?.send({
+      type: 'broadcast', event: 'toggle_whiteboard', payload: { isActive: newState }
+    });
+  };
+
   const currentRound = rounds?.[activeRoundIdx] || null;
   const studentsArr: StudentStat[] = Object.values(studentStats || {});
   const currentBuzzerWinner = studentsArr.find(s => s.status === 'Answering')?.name;
@@ -282,6 +285,12 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
                    >
                      <span>🔔</span> RESET CHUÔNG
                    </button>
+                   <button 
+                     onClick={toggleWhiteboard}
+                     className={`px-6 py-4 rounded-2xl font-black uppercase italic transition-all shadow-sm flex items-center gap-2 ${isWhiteboardActive ? 'bg-slate-900 text-white ring-4 ring-slate-100' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                   >
+                     <span>👨‍🏫</span> {isWhiteboardActive ? 'ĐANG GIẢNG' : 'GIẢNG BÀI'}
+                   </button>
                  </>
                )}
                
@@ -321,6 +330,10 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
                          )}
                          <p className="text-blue-500 font-bold uppercase tracking-[0.4em] text-sm animate-pulse">ĐỢI GIÁO VIÊN NHẤN HIỂN THỊ</p>
                       </div>
+                    ) : isWhiteboardActive ? (
+                      <div className="absolute inset-0 p-4">
+                         <Whiteboard isTeacher={true} channel={controlChannelRef.current} roomCode={currentSessionCode} />
+                      </div>
                     ) : (
                       <div className="flex flex-col items-center justify-center h-full">
                          <div className="text-slate-300 font-black italic uppercase text-[10px] tracking-widest mb-6 border border-slate-100 px-4 py-1 rounded-full">Nội dung câu {liveProblemIdx + 1}</div>
@@ -350,23 +363,21 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
                         </thead>
                         <tbody className="divide-y divide-slate-50">
                            {studentsArr.map((s, i) => (
-                              <tr key={i} className={`hover:bg-slate-50 transition-colors ${currentBuzzerWinner === s.name ? 'bg-blue-50' : ''} ${!s.isOnline ? 'opacity-40 grayscale' : ''}`}>
-                                 <td className="py-4 font-black text-slate-700 uppercase italic text-xs">
-                                   {s.name} {!s.isOnline && <span className="text-[8px] text-rose-400 ml-1">(OFFLINE)</span>}
-                                 </td>
-                                 <td className="py-4 text-center">
-                                    {s.status === 'Answering' ? (
-                                      <span className="text-blue-500 font-black italic text-[10px] animate-pulse">Đang TL...</span>
-                                    ) : s.status === 'Correct' ? (
-                                      <span className="text-emerald-500 font-black italic text-[10px]">Đúng ✅</span>
-                                    ) : s.status === 'Incorrect' ? (
-                                      <span className="text-rose-500 font-black italic text-[10px]">Sai ❌</span>
-                                    ) : (
-                                      <span className="text-slate-300 font-black italic text-[10px]">...</span>
-                                    )}
-                                 </td>
-                                 <td className="py-4 text-right font-black text-blue-600 italic text-sm">{s.score}</td>
-                              </tr>
+                             <tr key={i} className={`hover:bg-slate-50 transition-colors ${currentBuzzerWinner === s.name ? 'bg-blue-50' : ''}`}>
+                                <td className="py-4 font-black text-slate-700 uppercase italic text-xs">{s.name}</td>
+                                <td className="py-4 text-center">
+                                   {s.status === 'Answering' ? (
+                                     <span className="text-blue-500 font-black italic text-[10px] animate-pulse">Đang TL...</span>
+                                   ) : s.status === 'Correct' ? (
+                                     <span className="text-emerald-500 font-black italic text-[10px]">Đúng ✅</span>
+                                   ) : s.status === 'Incorrect' ? (
+                                     <span className="text-rose-500 font-black italic text-[10px]">Sai ❌</span>
+                                   ) : (
+                                     <span className="text-slate-300 font-black italic text-[10px]">...</span>
+                                   )}
+                                </td>
+                                <td className="py-4 text-right font-black text-blue-600 italic text-sm">{s.score}</td>
+                             </tr>
                            ))}
                         </tbody>
                      </table>

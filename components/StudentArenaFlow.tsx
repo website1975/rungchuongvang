@@ -46,16 +46,9 @@ const StudentArenaFlow: React.FC<StudentArenaFlowProps> = ({
           const state = channel.presenceState();
           const playersKeys = Object.keys(state).sort();
           const playerNames = playersKeys
-            .filter(k => !k.includes('teacher'))
+            .filter(k => k !== 'teacher')
             .map(k => k.split('_')[0]);
           setPresentPlayers(playerNames);
-
-          const hasTeacher = Object.keys(state).some(k => k.includes('teacher'));
-          if (!hasTeacher) {
-            setError('Giáo viên đã rời phòng.');
-          } else {
-            setError('');
-          }
         })
         .on('broadcast', { event: 'teacher_start_game' }, ({ payload }) => {
           isTransitioningRef.current = true; // Đánh dấu đang chuyển cảnh
