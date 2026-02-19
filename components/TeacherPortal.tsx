@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import ExamLibrary from './ExamLibrary';
 import AdminPanel from './AdminPanel';
-import TeacherManagement from './TeacherManagement';
 import { Round, GameSettings, GameState, Player, AdminTab, InteractiveMechanic, QuestionType, Difficulty, DisplayChallenge } from '../types';
 
 interface TeacherPortalProps {
@@ -43,12 +42,11 @@ interface TeacherPortalProps {
 }
 
 const TeacherPortal: React.FC<TeacherPortalProps> = (props) => {
-  // Fix: Added onStartGame to the destructuring list to resolve "Cannot find name 'onStartGame'" error.
   const { adminTab, setAdminTab, playerName, teacherId, teacherMaGV, teacherSubject, teacherRole, onLogout, examSets, searchLibrary, setSearchLibrary, activeCategory, setActiveCategory, categories, onLoadSet, onDeleteSet, onStartGame, rounds, setRounds, settings, setSettings, currentGameState, onNextQuestion, players, myPlayerId, onSaveSet, loadedSetTitle, loadedSetTopic, loadedSetId, onResetToNew, onRefreshSets, isLoadingSets, onLive, liveSessionKey } = props;
 
-  // Tự động chuyển về CLOUD nếu tab hiện tại không hợp lệ (do xóa EDITOR)
+  // Tự động chuyển về CLOUD nếu tab hiện tại không hợp lệ
   useEffect(() => {
-    if (adminTab as any === 'EDITOR' || adminTab as any === 'LAB') {
+    if (adminTab as any === 'EDITOR' || adminTab as any === 'LAB' || adminTab === 'MANAGEMENT') {
       setAdminTab('CLOUD');
     }
   }, [adminTab, setAdminTab]);
@@ -85,12 +83,6 @@ const TeacherPortal: React.FC<TeacherPortalProps> = (props) => {
               <button onClick={() => { setAdminTab('CONTROL'); }} className={`w-full text-left p-5 rounded-2xl font-black text-[11px] uppercase flex items-center gap-4 transition-all ${adminTab === 'CONTROL' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20' : 'text-slate-400 hover:bg-white/5'}`}>
                 <span className="text-xl">🕹️</span> Quản lý Arena
               </button>
-              
-              {teacherRole === 'ADMIN' && (
-                <button onClick={() => { setAdminTab('MANAGEMENT'); }} className={`w-full text-left p-5 rounded-2xl font-black text-[11px] uppercase flex items-center gap-4 transition-all ${adminTab === 'MANAGEMENT' ? 'bg-amber-600 text-white shadow-lg shadow-amber-500/20' : 'text-slate-400 hover:bg-white/5'}`}>
-                  <span className="text-xl">👥</span> Danh sách GV
-                </button>
-              )}
            </div>
         </nav>
 
@@ -101,7 +93,7 @@ const TeacherPortal: React.FC<TeacherPortalProps> = (props) => {
          <header className="flex flex-col xl:flex-row justify-between items-center gap-8 mb-16">
             <div className="flex-1 w-full text-center xl:text-left">
               <h3 className="text-7xl font-black italic uppercase text-slate-900 tracking-tighter leading-none animate-in slide-in-from-left">
-                {adminTab === 'CLOUD' ? 'KHO ĐỀ' : adminTab === 'CONTROL' ? 'BẢNG ĐIỀU KHIỂN' : adminTab === 'MANAGEMENT' ? 'QUẢN LÝ GV' : 'HỆ THỐNG'}
+                {adminTab === 'CLOUD' ? 'KHO ĐỀ' : 'BẢNG ĐIỀU KHIỂN'}
               </h3>
               <p className="text-slate-400 font-bold italic text-base mt-4">Điều hành đấu trường trực tuyến thời gian thực</p>
             </div>
@@ -112,12 +104,10 @@ const TeacherPortal: React.FC<TeacherPortalProps> = (props) => {
              examSets={examSets} searchLibrary={searchLibrary} setSearchLibrary={setSearchLibrary} 
              activeCategory={activeCategory} setActiveCategory={setActiveCategory} categories={categories}
              onLoadSet={onLoadSet} onDeleteSet={onDeleteSet} 
-             onEdit={(id, title) => { onLoadSet(id, title); setAdminTab('CONTROL'); }} // Chuyển sang control khi chọn đề
+             onEdit={(id, title) => { onLoadSet(id, title); setAdminTab('CONTROL'); }} 
              onLive={onLive} 
              onRefresh={onRefreshSets} teacherId={teacherId} teacherSubject={teacherSubject} isLoadingSets={isLoadingSets}
            />
-         ) : adminTab === 'MANAGEMENT' ? (
-           <TeacherManagement />
          ) : (
            <div className="h-full">
               <AdminPanel 
