@@ -1,55 +1,83 @@
 
-export interface Question {
-  id: number;
+export enum Difficulty {
+  EASY = 'Dễ',
+  MEDIUM = 'Trung bình',
+  HARD = 'Khó'
+}
+
+export enum QuestionType {
+  MULTIPLE_CHOICE = 'TN',
+  TRUE_FALSE = 'DS',
+  SHORT_ANSWER = 'TL'
+}
+
+export enum DisplayChallenge {
+  NORMAL = 'Mặc định',
+  MEMORY = 'Ghi nhớ nhanh',
+  FOGGY = 'Màn sương mờ',
+  SCRAMBLED = 'Sắp xếp từ'
+}
+
+export enum InteractiveMechanic {
+  CANNON = 'Pháo xạ kích',
+  RISING_WATER = 'Nước dâng cao',
+  SPACE_DASH = 'Vũ trụ phiêu lưu',
+  MARIO = 'Nấm lùn phiêu lưu',
+  HIDDEN_TILES = 'Lật ô bí mật'
+}
+
+export type UserRole = 'TEACHER' | 'STUDENT' | 'ADMIN';
+
+export interface Teacher {
+  id: string;
+  magv: string;
+  tengv: string;
+  monday: string;
+  pass: string;
+  role: 'ADMIN' | 'TEACHER';
+  email?: string;
+}
+
+export interface PhysicsProblem {
+  id: string;
+  title: string;
   content: string;
-  options: string[];
-  correctAnswer: number;
+  difficulty: Difficulty;
+  type: QuestionType;
+  challenge: DisplayChallenge;
+  challengeNumber?: number; 
+  mechanic?: InteractiveMechanic;
+  options?: string[]; 
+  correctAnswer: string; 
+  topic: string;
   explanation: string;
-  difficulty: 'Easy' | 'Medium' | 'Hard';
+  timeLimit?: number;
+  grade?: string;
+  subject?: string;
+  imageUrl?: string; 
 }
 
-export enum GameStatus {
-  LOBBY = 'LOBBY',
-  PLAYING = 'PLAYING',
-  EXPLAINING = 'EXPLAINING',
-  FINISHED = 'FINISHED'
-}
-
-export type ExplanationMode = 'TEXT' | 'WHITEBOARD' | 'VOICE';
-
-export interface DrawingPath {
-  color: string;
-  width: number;
-  points: { x: number; y: number }[];
-}
-
-export interface Student {
+export interface Player {
   id: string;
   name: string;
-  status: 'online' | 'buzzed' | 'correct' | 'wrong' | 'answering';
   score: number;
-  lastBuzzedTime?: number;
-  selectedOption?: number;
-  failedCurrentQuestion?: boolean;
+  isActive: boolean;
+  role: UserRole;
+  lastAnswerCorrect?: boolean;
 }
 
-export interface GameState {
-  questions: Question[];
-  currentQuestionIndex: number;
-  status: GameStatus;
-  timer: number;
-  isTimerRunning: boolean;
-  buzzedStudentId: string | null;
-  explanationMode: ExplanationMode;
-  whiteboardPaths: DrawingPath[];
+export interface Round {
+  number: number;
+  problems: PhysicsProblem[];
+  description?: string;
 }
 
-export type MessageType = 
-  | { type: 'SYNC_STATE', state: GameState, students?: Student[] }
-  | { type: 'STUDENT_JOIN', student: Student }
-  | { type: 'STUDENT_BUZZ', studentId: string, timestamp: number }
-  | { type: 'STUDENT_ANSWER', studentId: string, optionIndex: number }
-  | { type: 'DRAW', path: DrawingPath }
-  | { type: 'CLEAR_CANVAS' }
-  | { type: 'SET_EXPLANATION_MODE', mode: ExplanationMode }
-  | { type: 'REQUEST_SYNC' };
+export interface GameSettings {
+  autoNext: boolean;
+  autoNextDelay: number;
+  maxPlayers: number;
+}
+
+export type AdminTab = 'CONTROL' | 'CLOUD' | 'MANAGEMENT';
+
+export type GameState = 'LOBBY' | 'ROOM_SELECTION' | 'SET_SELECTION' | 'WAITING_ROOM' | 'ADMIN' | 'ROUND_INTRO' | 'STARTING_ROUND' | 'WAITING_FOR_BUZZER' | 'ANSWERING' | 'FEEDBACK' | 'LECTURING' | 'GAME_OVER' | 'ENTER_CODE' | 'STUDENT_SETUP' | 'TEACHER_LOGIN' | 'WAITING_FOR_PLAYERS' | 'KEYWORD_SELECTION';
