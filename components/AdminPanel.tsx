@@ -64,6 +64,7 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
     }
   }, [liveSessionKey, adminTab]);
 
+  // Logic kết nối kênh Realtime - Ổn định hóa dependencies
   useEffect(() => {
     if (adminTab === 'CONTROL' && currentSessionCode) {
       const channelName = `arena_room_${currentSessionCode}`;
@@ -74,7 +75,7 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
       channel
         .on('presence', { event: 'sync' }, () => {
           const state = channel.presenceState();
-          const currentPlayers = Object.keys(state)
+          const players = Object.keys(state)
             .filter(key => !key.includes('teacher'))
             .map(key => key.split('_')[0]);
           
@@ -85,7 +86,7 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
               next[name].isOnline = false;
             });
             // Mark current players as online and add new ones
-            currentPlayers.forEach(p => {
+            players.forEach(p => {
               if (!next[p]) {
                 next[p] = { name: p, score: 0, status: 'Waiting', answers: {}, isOnline: true };
               } else {
@@ -108,7 +109,7 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
               ...prev[payload.playerName], 
               status: payload.isCorrect ? 'Correct' : 'Incorrect',
               score: payload.currentScore || 0,
-              answers: { ...prev[payload.playerName]?.answers, [liveProblemIdx]: payload.answer }
+              answers: { ...prev[payload.playerName]?.answers, [payload.problemIdx ?? 0]: payload.answer }
             }
           }));
         })
@@ -121,7 +122,26 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
       controlChannelRef.current = channel;
       return () => { supabase.removeChannel(channel); };
     }
-  }, [adminTab, currentSessionCode, liveProblemIdx]);
+  }, [adminTab, currentSessionCode]); // Chỉ phụ thuộc vào tab và mã phòng
+
+  // Heartbeat để đồng bộ hóa trạng thái cho các máy bị kẹt
+  useEffect(() => {
+    if (!isLiveGameActive || !controlChannelRef.current) return;
+    
+    const interval = setInterval(() => {
+      controlChannelRef.current.send({
+        type: 'broadcast',
+        event: 'room_heartbeat',
+        payload: {
+          currentQuestionIndex: liveProblemIdx,
+          isShowingIntro: isShowingIntro,
+          isLiveGameActive: isLiveGameActive
+        }
+      });
+    }, 3000); // Mỗi 3 giây phát 1 lần
+
+    return () => clearInterval(interval);
+  }, [isLiveGameActive, liveProblemIdx, isShowingIntro]);
 
   const notify = (text: string, type: 'success' | 'error' = 'success') => {
     setStatus({ text, type });
