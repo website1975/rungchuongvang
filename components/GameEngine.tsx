@@ -64,9 +64,21 @@ const GameEngine: React.FC<GameEngineProps> = ({
         const state = channel.presenceState();
         const hasTeacher = Object.keys(state).some(key => key.includes('teacher'));
         if (!hasTeacher && gameState !== 'LOBBY') {
-           // If teacher leaves, we might want to notify or exit after a delay
-           // For now, let's just log it or show a message if needed
            console.log("Teacher has left the room");
+        }
+      })
+      .on('broadcast', { event: 'room_heartbeat' }, ({ payload }) => {
+        // Cơ chế tự sửa lỗi: Đồng bộ hóa câu hỏi và trạng thái hiển thị
+        if (payload.currentQuestionIndex > currentProblemIdx) {
+          setCurrentProblemIdx(payload.currentQuestionIndex);
+          setIsEliminatedFromCurrent(false);
+          setTeacherForcedExplanation(false);
+          setGameState(payload.isShowingIntro ? 'STARTING_ROUND' : 'WAITING_FOR_BUZZER');
+        } else if (payload.currentQuestionIndex === currentProblemIdx) {
+          // Nếu cùng câu nhưng lệch trạng thái (ví dụ: giáo viên đã nhấn hiện câu hỏi nhưng máy học sinh vẫn ở intro)
+          if (payload.isShowingIntro === false && gameState === 'STARTING_ROUND') {
+             setGameState('WAITING_FOR_BUZZER');
+          }
         }
       })
       .on('broadcast', { event: 'buzzer_pressed' }, ({ payload }) => {
@@ -77,8 +89,8 @@ const GameEngine: React.FC<GameEngineProps> = ({
         }
       })
       .on('broadcast', { event: 'sync_result' }, ({ payload }) => {
-        if (payload.playerName === playerName || buzzerWinnerRef.current === playerName) {
-           setIsCorrect(payload.isCorrect);
+        setIsCorrect(payload.isCorrect); // Sync for everyone to show correct feedback UI
+        if (payload.playerName === playerName) {
            if (!payload.isCorrect) setIsEliminatedFromCurrent(true);
         }
         setIsAnswered(true);
@@ -120,7 +132,7 @@ const GameEngine: React.FC<GameEngineProps> = ({
     return () => { 
       supabase.removeChannel(channel); 
     };
-  }, [matchData?.roomCode, playerName, uniqueId, onExit, setGameState, isEliminatedFromCurrent]);
+  }, [matchData?.roomCode, playerName, uniqueId, onExit]); // Removed setGameState and isEliminatedFromCurrent
 
   useEffect(() => {
     if (gameState === 'STARTING_ROUND') {
@@ -159,7 +171,8 @@ const GameEngine: React.FC<GameEngineProps> = ({
         isCorrect: correct, 
         playerName, 
         currentScore: newScore,
-        answer: answer
+        answer: answer,
+        problemIdx: currentProblemIdx
       }
     });
     
@@ -269,15 +282,20 @@ const GameEngine: React.FC<GameEngineProps> = ({
                 </div>
             ) : gameState === 'FEEDBACK' ? (
                 <div className="flex flex-col items-center justify-center text-center h-full">
-                    <div className={`text-9xl mb-4 ${isCorrect || teacherForcedExplanation ? 'text-emerald-500' : 'text-rose-500 animate-bounce'}`}>{isCorrect || teacherForcedExplanation ? '✅' : '❌'}</div>
+                    <div className={`text-9xl mb-4 ${isCorrect || teacherForcedExplanation ? 'text-emerald-500' : 'text-rose-500 animate-bounce'}`}>
+                      {teacherForcedExplanation || (buzzerWinner === playerName && isCorrect) ? '✅' : 
+                       (buzzerWinner === playerName && !isCorrect) ? '❌' : '📢'}
+                    </div>
                     <h3 className={`text-4xl font-black uppercase italic mb-6 ${isCorrect || teacherForcedExplanation ? 'text-emerald-500' : 'text-rose-500'}`}>
-                      {teacherForcedExplanation ? 'ĐÁP ÁN CHI TIẾT' : isCorrect ? 'CHÍNH XÁC!' : 'CHƯA ĐÚNG!'}
+                      {teacherForcedExplanation ? 'ĐÁP ÁN CHI TIẾT' : 
+                       buzzerWinner === playerName ? (isCorrect ? 'CHÍNH XÁC!' : 'CHƯA ĐÚNG!') :
+                       (isCorrect ? `${buzzerWinner} ĐÃ ĐÚNG!` : `${buzzerWinner} ĐÃ SAI!`)}
                     </h3>
                     
-                    {isCorrect || teacherForcedExplanation ? (
+                    {(isCorrect || teacherForcedExplanation || buzzerWinner !== playerName) ? (
                       <div className="bg-emerald-50 p-8 rounded-[2.5rem] w-full border-4 border-emerald-100 text-left shadow-xl shadow-emerald-500/10 animate-in slide-in-from-bottom-4">
                           <div className="text-[10px] font-black text-emerald-600 uppercase mb-3 italic tracking-[0.2em] flex items-center gap-2">
-                             <span className="w-2 h-2 bg-emerald-500 rounded-full"></span> HƯỚNG DẪN CHI TIẾT
+                             <span className="w-2 h-2 bg-emerald-500 rounded-full"></span> {buzzerWinner === playerName ? 'HƯỚNG DẪN CỦA BẠN' : `HƯỚNG DẪN CHO ${buzzerWinner?.toUpperCase()}`}
                           </div>
                           <div className="text-xl font-medium text-slate-700 italic leading-relaxed">
                             <LatexRenderer content={currentProblem?.explanation || ''} />
@@ -291,11 +309,6 @@ const GameEngine: React.FC<GameEngineProps> = ({
                       <div className="bg-rose-50 p-10 rounded-[2.5rem] w-full border-4 border-rose-100 flex flex-col items-center text-center shadow-xl shadow-rose-500/10">
                           <div className="text-rose-600 font-black uppercase italic text-lg leading-tight mb-2">BẠN ĐÃ TRẢ LỜI SAI</div>
                           <p className="text-rose-400 font-bold italic text-sm">Vui lòng chờ xem kết quả chi tiết sau khi câu hỏi kết thúc...</p>
-                          <div className="mt-6 flex items-center gap-2">
-                             <div className="w-2 h-2 bg-rose-400 rounded-full animate-pulse"></div>
-                             <div className="w-2 h-2 bg-rose-400 rounded-full animate-pulse delay-75"></div>
-                             <div className="w-2 h-2 bg-rose-400 rounded-full animate-pulse delay-150"></div>
-                          </div>
                       </div>
                     )}
                 </div>
