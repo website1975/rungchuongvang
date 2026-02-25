@@ -284,18 +284,20 @@ const GameEngine: React.FC<GameEngineProps> = ({
                 <div className="flex flex-col items-center justify-center text-center h-full">
                     <div className={`text-9xl mb-4 ${isCorrect || teacherForcedExplanation ? 'text-emerald-500' : 'text-rose-500 animate-bounce'}`}>
                       {teacherForcedExplanation || (buzzerWinner === playerName && isCorrect) ? '✅' : 
-                       (buzzerWinner === playerName && !isCorrect) ? '❌' : '📢'}
+                       (buzzerWinner === playerName && !isCorrect) ? '❌' : 
+                       (isCorrect ? '👏' : '📢')}
                     </div>
+                    
                     <h3 className={`text-4xl font-black uppercase italic mb-6 ${isCorrect || teacherForcedExplanation ? 'text-emerald-500' : 'text-rose-500'}`}>
                       {teacherForcedExplanation ? 'ĐÁP ÁN CHI TIẾT' : 
-                       buzzerWinner === playerName ? (isCorrect ? 'CHÍNH XÁC!' : 'CHƯA ĐÚNG!') :
-                       (isCorrect ? `${buzzerWinner} ĐÃ ĐÚNG!` : `${buzzerWinner} ĐÃ SAI!`)}
+                       buzzerWinner === playerName ? (isCorrect ? 'CHÍNH XÁC!' : 'CHƯA ĐÚNG! Bạn trả lời sai') :
+                       (isCorrect ? `${buzzerWinner} ĐÃ ĐÚNG!` : `CHƯA ĐÚNG! ${buzzerWinner} đã trả lời sai, chuẩn bị nhấn chuông tiếp`)}
                     </h3>
                     
-                    {(isCorrect || teacherForcedExplanation || buzzerWinner !== playerName) ? (
+                    {(isCorrect || teacherForcedExplanation) ? (
                       <div className="bg-emerald-50 p-8 rounded-[2.5rem] w-full border-4 border-emerald-100 text-left shadow-xl shadow-emerald-500/10 animate-in slide-in-from-bottom-4">
                           <div className="text-[10px] font-black text-emerald-600 uppercase mb-3 italic tracking-[0.2em] flex items-center gap-2">
-                             <span className="w-2 h-2 bg-emerald-500 rounded-full"></span> {buzzerWinner === playerName ? 'HƯỚNG DẪN CỦA BẠN' : `HƯỚNG DẪN CHO ${buzzerWinner?.toUpperCase()}`}
+                             <span className="w-2 h-2 bg-emerald-500 rounded-full"></span> HƯỚNG DẪN CHI TIẾT
                           </div>
                           <div className="text-xl font-medium text-slate-700 italic leading-relaxed">
                             <LatexRenderer content={currentProblem?.explanation || ''} />
@@ -307,8 +309,14 @@ const GameEngine: React.FC<GameEngineProps> = ({
                       </div>
                     ) : (
                       <div className="bg-rose-50 p-10 rounded-[2.5rem] w-full border-4 border-rose-100 flex flex-col items-center text-center shadow-xl shadow-rose-500/10">
-                          <div className="text-rose-600 font-black uppercase italic text-lg leading-tight mb-2">BẠN ĐÃ TRẢ LỜI SAI</div>
-                          <p className="text-rose-400 font-bold italic text-sm">Vui lòng chờ xem kết quả chi tiết sau khi câu hỏi kết thúc...</p>
+                          <div className="text-rose-600 font-black uppercase italic text-lg leading-tight mb-2">
+                            {buzzerWinner === playerName ? 'BẠN ĐÃ TRẢ LỜI SAI' : `${buzzerWinner?.toUpperCase()} ĐÃ TRẢ LỜI SAI`}
+                          </div>
+                          <p className="text-rose-400 font-bold italic text-sm">
+                            {buzzerWinner === playerName 
+                              ? 'Bạn đã bị loại khỏi câu hỏi này. Đợi giáo viên chuyển câu tiếp theo...' 
+                              : 'Cơ hội vẫn còn! Đợi giáo viên reset chuông để nhấn tiếp...'}
+                          </p>
                       </div>
                     )}
                 </div>
