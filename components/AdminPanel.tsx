@@ -342,11 +342,23 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
                          <p className="text-blue-500 font-bold uppercase tracking-[0.4em] text-sm animate-pulse">ĐỢI GIÁO VIÊN NHẤN HIỂN THỊ</p>
                       </div>
                     ) : (
-                      <div className="flex flex-col items-center justify-center h-full">
+                      <div className="flex flex-col items-start justify-center h-full w-full px-12">
                          <div className="text-slate-300 font-black italic uppercase text-[10px] tracking-widest mb-6 border border-slate-100 px-4 py-1 rounded-full">Nội dung câu {liveProblemIdx + 1}</div>
-                         <div className="text-4xl font-medium text-slate-800 italic leading-relaxed max-w-[90%] mx-auto text-center">
+                         <div className="text-2xl font-medium text-slate-800 italic leading-relaxed text-left mb-8 w-full">
+                            <span className="font-black text-blue-600 mr-3 not-italic">CÂU:</span>
                             <LatexRenderer content={currentProblem?.content || ""} />
                          </div>
+                         
+                         {currentProblem?.options && currentProblem.options.length > 0 && (
+                           <div className="grid grid-cols-1 gap-4 w-full text-left">
+                             {currentProblem.options.map((opt, idx) => (
+                               <div key={idx} className="text-xl font-bold text-slate-600 flex items-start gap-3 bg-slate-50/50 p-4 rounded-2xl border border-slate-100/50">
+                                 <span className="text-blue-600 min-w-[32px] font-black">{String.fromCharCode(65 + idx)}.</span>
+                                 <LatexRenderer content={opt} />
+                               </div>
+                             ))}
+                           </div>
+                         )}
                       </div>
                     )}
                   </div>
