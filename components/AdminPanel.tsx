@@ -60,6 +60,7 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
       setIsLiveGameActive(false);
       setIsShowingIntro(false);
       setLiveProblemIdx(0);
+      setActiveRoundIdx(0); // Reset round index
       setStudentStats({});
     }
   }, [liveSessionKey, adminTab]);
@@ -133,6 +134,7 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
         type: 'broadcast',
         event: 'room_heartbeat',
         payload: {
+          currentRoundIndex: activeRoundIdx,
           currentQuestionIndex: liveProblemIdx,
           isShowingIntro: isShowingIntro,
           isLiveGameActive: isLiveGameActive
@@ -164,6 +166,7 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
         setId: loadedSetId, 
         title: loadedSetTitle, 
         rounds: rounds, 
+        currentRoundIndex: activeRoundIdx,
         currentQuestionIndex: 0,
         roomCode: currentSessionCode 
       }
@@ -184,7 +187,28 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
     const nextIdx = liveProblemIdx + 1;
     
     if (nextIdx >= totalInRound) { 
-      notify("Đã hết câu hỏi trong vòng này!", "error"); 
+      // Check if there's a next round
+      if (activeRoundIdx + 1 < rounds.length) {
+        const nextRoundIdx = activeRoundIdx + 1;
+        setActiveRoundIdx(nextRoundIdx);
+        setLiveProblemIdx(0);
+        setIsShowingIntro(true); // Show intro for the new round
+
+        setStudentStats(prev => {
+            const next = { ...prev };
+            Object.keys(next).forEach(k => { next[k].status = 'Waiting'; });
+            return next;
+        });
+
+        controlChannelRef.current?.send({ 
+          type: 'broadcast', 
+          event: 'teacher_next_round',
+          payload: { nextRoundIndex: nextRoundIdx }
+        });
+        notify(`Bắt đầu Vòng ${nextRoundIdx + 1}!`);
+      } else {
+        notify("Đã hết tất cả câu hỏi và vòng đấu!", "error"); 
+      }
       return; 
     }
     
