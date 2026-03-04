@@ -353,7 +353,7 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
                   <div className="bg-slate-50 p-6 border-b border-slate-100 flex justify-between items-center">
                     <h4 className="font-bold text-slate-400 uppercase italic text-xs tracking-widest">BẢNG TRÌNH CHIẾU</h4>
                   </div>
-                  <div className="flex-1 p-10 flex flex-col justify-center text-center relative overflow-y-auto no-scrollbar">
+                  <div className="flex-1 p-6 flex flex-col justify-start text-center relative overflow-y-auto no-scrollbar">
                     {isShowingIntro ? (
                       <div className="animate-in zoom-in flex flex-col items-center">
                          <div className="text-8xl mb-10 animate-bounce">🚀</div>
@@ -366,24 +366,29 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
                          <p className="text-blue-500 font-bold uppercase tracking-[0.4em] text-sm animate-pulse">ĐỢI GIÁO VIÊN NHẤN HIỂN THỊ</p>
                       </div>
                     ) : (
-                      <div className="flex flex-col items-start justify-center h-full w-full px-12">
-                         <div className="text-slate-300 font-black italic uppercase text-[10px] tracking-widest mb-6 border border-slate-100 px-4 py-1 rounded-full">Nội dung câu {liveProblemIdx + 1}</div>
-                         <div className="text-2xl font-medium text-slate-800 italic leading-relaxed text-left mb-8 w-full">
-                            <span className="font-black text-blue-600 mr-3 not-italic">CÂU:</span>
-                            <LatexRenderer content={currentProblem?.content || ""} />
+                    <div className="flex flex-col gap-4">
+                       <div className="flex justify-between items-center w-full mb-2">
+                          <div className="text-slate-400 font-black italic uppercase text-[10px] tracking-widest border border-slate-100 px-4 py-1 rounded-full">Nội dung câu {liveProblemIdx + 1}</div>
+                          <div className="bg-emerald-500 text-white px-4 py-1 rounded-full font-black text-xs uppercase italic animate-pulse">
+                             Đáp án: {currentProblem?.correctAnswer}
+                          </div>
+                       </div>
+                       <div className="text-lg font-bold text-slate-800 italic leading-snug text-left mb-2 w-full bg-blue-50/30 p-4 rounded-2xl border border-blue-100/50">
+                          <span className="font-black text-blue-600 mr-2 not-italic">CÂU:</span>
+                          <LatexRenderer content={currentProblem?.content || ""} />
+                       </div>
+                       
+                       {currentProblem?.options && currentProblem.options.length > 0 && (
+                         <div className="grid grid-cols-2 gap-3 w-full text-left">
+                           {currentProblem.options.map((opt, idx) => (
+                             <div key={idx} className={`text-sm font-bold flex items-start gap-2 p-3 rounded-xl border ${currentProblem.correctAnswer === String.fromCharCode(65 + idx) ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-50 border-slate-100 text-slate-600'}`}>
+                               <span className={`${currentProblem.correctAnswer === String.fromCharCode(65 + idx) ? 'text-emerald-600' : 'text-blue-600'} min-w-[24px] font-black`}>{String.fromCharCode(65 + idx)}.</span>
+                               <LatexRenderer content={opt} />
+                             </div>
+                           ))}
                          </div>
-                         
-                         {currentProblem?.options && currentProblem.options.length > 0 && (
-                           <div className="grid grid-cols-1 gap-4 w-full text-left">
-                             {currentProblem.options.map((opt, idx) => (
-                               <div key={idx} className="text-xl font-bold text-slate-600 flex items-start gap-3 bg-slate-50/50 p-4 rounded-2xl border border-slate-100/50">
-                                 <span className="text-blue-600 min-w-[32px] font-black">{String.fromCharCode(65 + idx)}.</span>
-                                 <LatexRenderer content={opt} />
-                               </div>
-                             ))}
-                           </div>
-                         )}
-                      </div>
+                       )}
+                    </div>
                     )}
                   </div>
                </div>
@@ -407,21 +412,21 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
                         <tbody className="divide-y divide-slate-50">
                            {studentsArr.map((s, i) => (
                               <tr key={i} className={`hover:bg-slate-50 transition-colors ${currentBuzzerWinner === s.name ? 'bg-blue-50' : ''} ${!s.isOnline ? 'opacity-40 grayscale' : ''}`}>
-                                 <td className="py-4 font-black text-slate-700 uppercase italic text-xs">
-                                   {s.name} {!s.isOnline && <span className="text-[8px] text-rose-400 ml-1">(OFFLINE)</span>}
+                                 <td className="py-2 font-black text-slate-700 uppercase italic text-[11px]">
+                                   {s.name} {!s.isOnline && <span className="text-[8px] text-rose-400 ml-1">(OFF)</span>}
                                  </td>
-                                 <td className="py-4 text-center">
+                                 <td className="py-2 text-center">
                                     {s.status === 'Answering' ? (
-                                      <span className="text-blue-500 font-black italic text-[10px] animate-pulse">Đang TL...</span>
+                                      <span className="text-blue-500 font-black italic text-[9px] animate-pulse">ĐANG TL...</span>
                                     ) : s.status === 'Correct' ? (
-                                      <span className="text-emerald-500 font-black italic text-[10px]">Đúng ✅</span>
+                                      <span className="text-emerald-500 font-black italic text-[9px]">ĐÚNG ✅</span>
                                     ) : s.status === 'Incorrect' ? (
-                                      <span className="text-rose-500 font-black italic text-[10px]">Sai ❌</span>
+                                      <span className="text-rose-500 font-black italic text-[9px]">SAI ❌</span>
                                     ) : (
-                                      <span className="text-slate-300 font-black italic text-[10px]">...</span>
+                                      <span className="text-slate-300 font-black italic text-[9px]">...</span>
                                     )}
                                  </td>
-                                 <td className="py-4 text-right font-black text-blue-600 italic text-sm">{s.score}</td>
+                                 <td className="py-2 text-right font-black text-blue-600 italic text-xs">{s.score}</td>
                               </tr>
                            ))}
                         </tbody>
