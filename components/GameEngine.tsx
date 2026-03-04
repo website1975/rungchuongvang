@@ -68,27 +68,21 @@ const GameEngine: React.FC<GameEngineProps> = ({
         }
       })
       .on('broadcast', { event: 'room_heartbeat' }, ({ payload }) => {
-        // Cơ chế tự sửa lỗi: Đồng bộ hóa câu hỏi và trạng thái hiển thị
-        let changed = false;
-        
+        // Đồng bộ hóa trạng thái ngay lập tức nếu lệch quá nhiều
         if (payload.currentRoundIndex !== undefined && payload.currentRoundIndex > currentRoundIdx) {
           setCurrentRoundIdx(payload.currentRoundIndex);
           setCurrentProblemIdx(payload.currentQuestionIndex);
           setIsEliminatedFromCurrent(false);
           setTeacherForcedExplanation(false);
           setGameState(payload.isShowingIntro ? 'ROUND_INTRO' : 'WAITING_FOR_BUZZER');
-          changed = true;
-        } else if (payload.currentQuestionIndex > currentProblemIdx) {
+        } else if (payload.currentQuestionIndex !== currentProblemIdx) {
+          // Chỉ cập nhật nếu chỉ số câu hỏi thực sự khác
           setCurrentProblemIdx(payload.currentQuestionIndex);
           setIsEliminatedFromCurrent(false);
           setTeacherForcedExplanation(false);
           setGameState(payload.isShowingIntro ? 'STARTING_ROUND' : 'WAITING_FOR_BUZZER');
-          changed = true;
-        } else if (payload.currentQuestionIndex === currentProblemIdx && (payload.currentRoundIndex === undefined || payload.currentRoundIndex === currentRoundIdx)) {
-          // Nếu cùng câu nhưng lệch trạng thái (ví dụ: giáo viên đã nhấn hiện câu hỏi nhưng máy học sinh vẫn ở intro)
-          if (payload.isShowingIntro === false && gameState === 'STARTING_ROUND') {
-             setGameState('WAITING_FOR_BUZZER');
-          }
+        } else if (payload.isShowingIntro === false && gameState === 'STARTING_ROUND') {
+           setGameState('WAITING_FOR_BUZZER');
         }
       })
       .on('broadcast', { event: 'buzzer_pressed' }, ({ payload }) => {
@@ -110,6 +104,7 @@ const GameEngine: React.FC<GameEngineProps> = ({
         setGameState('STARTING_ROUND');
       })
       .on('broadcast', { event: 'teacher_next_question' }, ({ payload }) => {
+        if (payload.nextIndex === currentProblemIdx) return; // Tránh lặp do gửi 2 lần
         setCurrentProblemIdx(payload.nextIndex);
         setIsEliminatedFromCurrent(false);
         setTeacherForcedExplanation(false);
