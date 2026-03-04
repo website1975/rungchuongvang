@@ -24,7 +24,7 @@ const App: React.FC = () => {
   const [loadedSetId, setLoadedSetId] = useState<string | null>(null);
   const [rounds, setRounds] = useState<Round[]>([{ number: 1, problems: [], description: '' }]);
   const [settings, setSettings] = useState<GameSettings>({ autoNext: false, autoNextDelay: 20, maxPlayers: 100 });
-  const [matchData, setMatchData] = useState<{ setId: string, title: string, rounds: Round[], opponentName?: string, joinedRoom?: any, startIndex?: number, roomCode?: string } | null>(null);
+  const [matchData, setMatchData] = useState<{ setId: string, title: string, rounds: Round[], opponentName?: string, joinedRoom?: any, startRoundIndex?: number, startIndex?: number, roomCode?: string } | null>(null);
   const [liveSessionKey, setLiveSessionKey] = useState<number>(Date.now());
 
   const checkAI = async () => {
