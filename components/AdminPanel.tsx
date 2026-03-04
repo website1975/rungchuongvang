@@ -285,13 +285,20 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
                               <tr key={idx} className="hover:bg-slate-50 transition-colors">
                                  <td className="p-4 font-bold text-slate-400 text-center border border-slate-50">{idx + 1}</td>
                                  <td className="p-4 font-black text-slate-800 uppercase italic border border-slate-50">{s.name}</td>
-                                 {Array.from({ length: currentRound?.problems?.length || 0 }).map((_, i) => (
-                                    <td key={i} className="p-4 text-center border border-slate-50 font-bold">
-                                       <span className={s.answers[i] === currentRound?.problems[i]?.correctAnswer ? 'text-emerald-500' : 'text-rose-500'}>
-                                          {s.answers[i] || '-'}
-                                       </span>
-                                    </td>
-                                 ))}
+                                 {Array.from({ length: currentRound?.problems?.length || 0 }).map((_, i) => {
+                                    const studentAnswer = s.answers[i] || '';
+                                    const correctAnswer = currentRound?.problems[i]?.correctAnswer || '';
+                                    const normalize = (val: string) => val.trim().toUpperCase().replace(/,/g, '.');
+                                    const isCorrect = studentAnswer && normalize(studentAnswer) === normalize(correctAnswer);
+                                    
+                                    return (
+                                       <td key={i} className="p-4 text-center border border-slate-50 font-bold">
+                                          <span className={isCorrect ? 'text-emerald-500' : 'text-rose-500'}>
+                                             {s.answers[i] || '-'}
+                                          </span>
+                                       </td>
+                                    );
+                                 })}
                               </tr>
                            ))}
                         </tbody>
