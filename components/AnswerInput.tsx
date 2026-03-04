@@ -42,6 +42,25 @@ const AnswerInput: React.FC<AnswerInputProps> = ({ problem, value, onChange, onS
     onChange('');
   };
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (disabled || problem.type !== QuestionType.SHORT_ANSWER) return;
+      
+      if (/^[0-9.,-]$/.test(e.key)) {
+        onChange(value + e.key);
+      } else if (e.key === 'Backspace') {
+        handleBackspace();
+      } else if (e.key === 'Enter' && value) {
+        onSubmit();
+      } else if (e.key === 'Escape') {
+        handleClear();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [disabled, value, problem.type, onChange, onSubmit]);
+
   if (problem.type === QuestionType.MULTIPLE_CHOICE) {
     return (
       <div className="flex flex-col gap-4">
@@ -124,7 +143,7 @@ const AnswerInput: React.FC<AnswerInputProps> = ({ problem, value, onChange, onS
 
       {/* Bàn phím số */}
       <div className="grid grid-cols-3 gap-3">
-        {['1', '2', '3', '4', '5', '6', '7', '8', '9', '-', '0', '.'].map((key) => (
+        {['1', '2', '3', '4', '5', '6', '7', '8', '9', '-', '0', '.', ','].map((key) => (
           <button
             key={key}
             disabled={disabled}
@@ -137,14 +156,14 @@ const AnswerInput: React.FC<AnswerInputProps> = ({ problem, value, onChange, onS
         <button
           disabled={disabled}
           onClick={handleClear}
-          className="col-span-1 h-16 bg-rose-50 text-rose-500 border-2 border-rose-100 rounded-2xl font-black uppercase italic text-xs shadow-sm hover:bg-rose-500 hover:text-white transition-all"
+          className="h-16 bg-rose-50 text-rose-500 border-2 border-rose-100 rounded-2xl font-black uppercase italic text-xs shadow-sm hover:bg-rose-500 hover:text-white transition-all"
         >
           Xóa hết
         </button>
         <button
           disabled={disabled}
           onClick={handleBackspace}
-          className="col-span-2 h-16 bg-slate-100 text-slate-600 border-2 border-slate-200 rounded-2xl font-black text-2xl shadow-sm hover:bg-slate-200 transition-all"
+          className="h-16 bg-slate-100 text-slate-600 border-2 border-slate-200 rounded-2xl font-black text-2xl shadow-sm hover:bg-slate-200 transition-all"
         >
           ⌫
         </button>
