@@ -140,7 +140,7 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
           isLiveGameActive: isLiveGameActive
         }
       });
-    }, 3000); // Mỗi 3 giây phát 1 lần
+    }, 1000); // Mỗi 1 giây phát 1 lần để giảm độ trễ đồng bộ
 
     return () => clearInterval(interval);
   }, [isLiveGameActive, liveProblemIdx, isShowingIntro]);
@@ -212,6 +212,14 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
       return; 
     }
     
+    const sendEvent = (event: string, payload: any) => {
+      controlChannelRef.current?.send({ type: 'broadcast', event, payload });
+      // Gửi lại lần 2 sau 200ms để đảm bảo nhận được (phòng trường hợp mạng lag)
+      setTimeout(() => {
+        controlChannelRef.current?.send({ type: 'broadcast', event, payload });
+      }, 200);
+    };
+
     setLiveProblemIdx(nextIdx);
     setIsShowingIntro(false); 
     
@@ -221,11 +229,7 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
         return next;
     });
 
-    controlChannelRef.current?.send({ 
-      type: 'broadcast', 
-      event: 'teacher_next_question',
-      payload: { nextIndex: nextIdx }
-    });
+    sendEvent('teacher_next_question', { nextIndex: nextIdx });
   };
 
   const handleResetBuzzer = () => {
@@ -347,95 +351,90 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
             </div>
          </header>
 
-         <div className="grid grid-cols-12 gap-6 flex-1 min-h-0">
-            <div className="col-span-8 flex flex-col h-full">
-               <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden flex-1 flex flex-col">
-                  <div className="bg-slate-50 p-6 border-b border-slate-100 flex justify-between items-center">
-                    <h4 className="font-bold text-slate-400 uppercase italic text-xs tracking-widest">BẢNG TRÌNH CHIẾU</h4>
-                  </div>
-                  <div className="flex-1 p-6 flex flex-col justify-start text-center relative overflow-y-auto no-scrollbar">
-                    {isShowingIntro ? (
-                      <div className="animate-in zoom-in flex flex-col items-center">
-                         <div className="text-8xl mb-10 animate-bounce">🚀</div>
-                         <h2 className="text-5xl font-black text-slate-800 uppercase italic tracking-tighter mb-4 leading-none">SẴN SÀNG CHƯA?</h2>
-                         {currentRound?.description && (
-                            <div className="bg-slate-50 px-10 py-6 rounded-[2rem] mb-6 border border-slate-100 max-w-xl">
-                               <p className="text-slate-600 italic font-medium text-lg leading-relaxed">{currentRound.description}</p>
-                            </div>
-                         )}
-                         <p className="text-blue-500 font-bold uppercase tracking-[0.4em] text-sm animate-pulse">ĐỢI GIÁO VIÊN NHẤN HIỂN THỊ</p>
-                      </div>
-                    ) : (
-                    <div className="flex flex-col gap-4">
-                       <div className="flex justify-between items-center w-full mb-2">
-                          <div className="text-slate-400 font-black italic uppercase text-[10px] tracking-widest border border-slate-100 px-4 py-1 rounded-full">Nội dung câu {liveProblemIdx + 1}</div>
-                          <div className="bg-emerald-500 text-white px-4 py-1 rounded-full font-black text-xs uppercase italic animate-pulse">
+          <div className="flex flex-col gap-4 flex-1 min-h-0 overflow-hidden">
+             {/* Question Area - Top */}
+             <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden shrink-0">
+                <div className="bg-slate-50 px-6 py-2 border-b border-slate-100 flex justify-between items-center">
+                  <h4 className="font-bold text-slate-400 uppercase italic text-[10px] tracking-widest">BẢNG TRÌNH CHIẾU</h4>
+                </div>
+                <div className="p-4 flex flex-col justify-start text-center relative">
+                  {isShowingIntro ? (
+                    <div className="animate-in zoom-in flex items-center justify-center gap-6 py-2">
+                       <div className="text-4xl animate-bounce">🚀</div>
+                       <div className="text-left">
+                          <h2 className="text-xl font-black text-slate-800 uppercase italic tracking-tighter leading-none">SẴN SÀNG CHƯA?</h2>
+                          <p className="text-blue-500 font-bold uppercase tracking-[0.2em] text-[10px] mt-1 animate-pulse">ĐỢI GIÁO VIÊN NHẤN HIỂN THỊ</p>
+                       </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-3">
+                       <div className="flex justify-between items-center w-full">
+                          <div className="text-slate-400 font-black italic uppercase text-[9px] tracking-widest border border-slate-100 px-3 py-0.5 rounded-full">Câu {liveProblemIdx + 1}</div>
+                          <div className="bg-emerald-500 text-white px-3 py-0.5 rounded-full font-black text-[10px] uppercase italic">
                              Đáp án: {currentProblem?.correctAnswer}
                           </div>
                        </div>
-                       <div className="text-lg font-bold text-slate-800 italic leading-snug text-left mb-2 w-full bg-blue-50/30 p-4 rounded-2xl border border-blue-100/50">
+                       <div className="text-base font-bold text-slate-800 italic leading-snug text-left bg-blue-50/30 p-3 rounded-xl border border-blue-100/50">
                           <span className="font-black text-blue-600 mr-2 not-italic">CÂU:</span>
                           <LatexRenderer content={currentProblem?.content || ""} />
                        </div>
                        
                        {currentProblem?.options && currentProblem.options.length > 0 && (
-                         <div className="grid grid-cols-2 gap-3 w-full text-left">
+                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 w-full text-left">
                            {currentProblem.options.map((opt, idx) => (
-                             <div key={idx} className={`text-sm font-bold flex items-start gap-2 p-3 rounded-xl border ${currentProblem.correctAnswer === String.fromCharCode(65 + idx) ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-50 border-slate-100 text-slate-600'}`}>
-                               <span className={`${currentProblem.correctAnswer === String.fromCharCode(65 + idx) ? 'text-emerald-600' : 'text-blue-600'} min-w-[24px] font-black`}>{String.fromCharCode(65 + idx)}.</span>
+                             <div key={idx} className={`text-[11px] font-bold flex items-start gap-1.5 p-2 rounded-lg border transition-all ${currentProblem.correctAnswer === String.fromCharCode(65 + idx) ? 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm ring-1 ring-emerald-100' : 'bg-slate-50 border-slate-100 text-slate-600'}`}>
+                               <span className={`${currentProblem.correctAnswer === String.fromCharCode(65 + idx) ? 'text-emerald-600' : 'text-blue-600'} min-w-[16px] font-black`}>{String.fromCharCode(65 + idx)}.</span>
                                <LatexRenderer content={opt} />
                              </div>
                            ))}
                          </div>
                        )}
                     </div>
-                    )}
-                  </div>
-               </div>
-            </div>
+                  )}
+                </div>
+             </div>
 
-            <div className="col-span-4 flex flex-col gap-6 h-full overflow-hidden">
-               <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col h-full">
-                  <div className="flex justify-between items-center mb-6 shrink-0">
-                    <h4 className="text-lg font-bold text-slate-800 uppercase italic">THÍ SINH ({studentsArr.length})</h4>
-                    <button onClick={() => setShowHistoryModal(true)} className="bg-slate-900 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase italic shadow-lg hover:bg-black">Danh sách 📊</button>
-                  </div>
-                  <div className="flex-1 overflow-y-auto pr-1 no-scrollbar">
-                     <table className="w-full text-left">
-                        <thead className="sticky top-0 bg-white z-10">
-                           <tr className="border-b-2 border-slate-50">
-                              <th className="pb-4 font-black text-[10px] text-slate-400 uppercase italic">Tên HS</th>
-                              <th className="pb-4 font-black text-[10px] text-slate-400 uppercase italic text-center">Tình trạng</th>
-                              <th className="pb-4 font-black text-[10px] text-slate-400 uppercase italic text-right">Tổng điểm</th>
-                           </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                           {studentsArr.map((s, i) => (
-                              <tr key={i} className={`hover:bg-slate-50 transition-colors ${currentBuzzerWinner === s.name ? 'bg-blue-50' : ''} ${!s.isOnline ? 'opacity-40 grayscale' : ''}`}>
-                                 <td className="py-2 font-black text-slate-700 uppercase italic text-[11px]">
-                                   {s.name} {!s.isOnline && <span className="text-[8px] text-rose-400 ml-1">(OFF)</span>}
-                                 </td>
-                                 <td className="py-2 text-center">
-                                    {s.status === 'Answering' ? (
-                                      <span className="text-blue-500 font-black italic text-[9px] animate-pulse">ĐANG TL...</span>
-                                    ) : s.status === 'Correct' ? (
-                                      <span className="text-emerald-500 font-black italic text-[9px]">ĐÚNG ✅</span>
-                                    ) : s.status === 'Incorrect' ? (
-                                      <span className="text-rose-500 font-black italic text-[9px]">SAI ❌</span>
-                                    ) : (
-                                      <span className="text-slate-300 font-black italic text-[9px]">...</span>
-                                    )}
-                                 </td>
-                                 <td className="py-2 text-right font-black text-blue-600 italic text-xs">{s.score}</td>
-                              </tr>
-                           ))}
-                        </tbody>
-                     </table>
-                     {studentsArr.length === 0 && <div className="py-20 text-center opacity-20 italic text-sm">Chưa có ai tham gia...</div>}
-                  </div>
-               </div>
-            </div>
-         </div>
+             {/* Thí sinh Area - Bottom */}
+             <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col flex-1 min-h-0 overflow-hidden">
+                <div className="flex justify-between items-center mb-4 shrink-0">
+                  <h4 className="text-base font-bold text-slate-800 uppercase italic">THÍ SINH ({studentsArr.length})</h4>
+                  <button onClick={() => setShowHistoryModal(true)} className="bg-slate-900 text-white px-3 py-1.5 rounded-lg text-[9px] font-black uppercase italic shadow-md hover:bg-black transition-all">Danh sách 📊</button>
+                </div>
+                <div className="flex-1 overflow-y-auto pr-1 no-scrollbar">
+                   <table className="w-full text-left">
+                      <thead className="sticky top-0 bg-white z-10">
+                         <tr className="border-b border-slate-50">
+                            <th className="pb-2 font-black text-[9px] text-slate-400 uppercase italic">Tên HS</th>
+                            <th className="pb-2 font-black text-[9px] text-slate-400 uppercase italic text-center">Tình trạng</th>
+                            <th className="pb-2 font-black text-[9px] text-slate-400 uppercase italic text-right">Điểm</th>
+                         </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                         {studentsArr.map((s, i) => (
+                            <tr key={i} className={`hover:bg-slate-50 transition-colors ${currentBuzzerWinner === s.name ? 'bg-blue-50' : ''} ${!s.isOnline ? 'opacity-40 grayscale' : ''}`}>
+                               <td className="py-1.5 font-black text-slate-700 uppercase italic text-[10px]">
+                                 {s.name} {!s.isOnline && <span className="text-[7px] text-rose-400 ml-1">(OFF)</span>}
+                               </td>
+                               <td className="py-1.5 text-center">
+                                  {s.status === 'Answering' ? (
+                                    <span className="text-blue-500 font-black italic text-[8px] animate-pulse">ĐANG TL...</span>
+                                  ) : s.status === 'Correct' ? (
+                                    <span className="text-emerald-500 font-black italic text-[8px]">ĐÚNG ✅</span>
+                                  ) : s.status === 'Incorrect' ? (
+                                    <span className="text-rose-500 font-black italic text-[8px]">SAI ❌</span>
+                                  ) : (
+                                    <span className="text-slate-300 font-black italic text-[8px]">...</span>
+                                  )}
+                               </td>
+                               <td className="py-1.5 text-right font-black text-blue-600 italic text-[10px]">{s.score}</td>
+                            </tr>
+                         ))}
+                      </tbody>
+                   </table>
+                   {studentsArr.length === 0 && <div className="py-10 text-center opacity-20 italic text-xs">Chưa có ai tham gia...</div>}
+                </div>
+             </div>
+          </div>
          {status && (
             <div className={`fixed bottom-10 left-1/2 -translate-x-1/2 px-8 py-4 rounded-2xl font-bold uppercase italic shadow-2xl animate-in slide-in-from-bottom-4 ${status.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'}`}>
               {status.text}
