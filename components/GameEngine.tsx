@@ -173,7 +173,9 @@ const GameEngine: React.FC<GameEngineProps> = ({
 
   const handleAnswerSubmit = useCallback(() => {
     if (isAnswered || !currentProblem) return;
-    const correct = answer.trim().toUpperCase() === currentProblem.correctAnswer.trim().toUpperCase();
+    
+    const normalize = (val: string) => val.trim().toUpperCase().replace(/,/g, '.');
+    const correct = normalize(answer) === normalize(currentProblem.correctAnswer);
     const newScore = score + (correct ? 100 : -50);
     
     channelRef.current?.send({
