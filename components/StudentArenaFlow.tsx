@@ -65,6 +65,7 @@ const StudentArenaFlow: React.FC<StudentArenaFlowProps> = ({
             rounds: payload.rounds, 
             opponentName: "Cả lớp",
             roomCode: payload.roomCode,
+            startRoundIndex: payload.currentRoundIndex || 0,
             startIndex: payload.currentQuestionIndex || 0 
           });
         })
