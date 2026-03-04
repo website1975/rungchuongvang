@@ -27,7 +27,7 @@ interface GameEngineProps {
 const GameEngine: React.FC<GameEngineProps> = ({ 
   gameState, setGameState, playerName, matchData, onExit 
 }) => {
-  const [currentRoundIdx, setCurrentRoundIdx] = useState(0);
+  const [currentRoundIdx, setCurrentRoundIdx] = useState(matchData.startRoundIndex || 0);
   const [currentProblemIdx, setCurrentProblemIdx] = useState(matchData.startIndex || 0);
   const [score, setScore] = useState(0);
   const [answer, setAnswer] = useState('');
@@ -69,12 +69,22 @@ const GameEngine: React.FC<GameEngineProps> = ({
       })
       .on('broadcast', { event: 'room_heartbeat' }, ({ payload }) => {
         // Cơ chế tự sửa lỗi: Đồng bộ hóa câu hỏi và trạng thái hiển thị
-        if (payload.currentQuestionIndex > currentProblemIdx) {
+        let changed = false;
+        
+        if (payload.currentRoundIndex !== undefined && payload.currentRoundIndex > currentRoundIdx) {
+          setCurrentRoundIdx(payload.currentRoundIndex);
+          setCurrentProblemIdx(payload.currentQuestionIndex);
+          setIsEliminatedFromCurrent(false);
+          setTeacherForcedExplanation(false);
+          setGameState(payload.isShowingIntro ? 'ROUND_INTRO' : 'WAITING_FOR_BUZZER');
+          changed = true;
+        } else if (payload.currentQuestionIndex > currentProblemIdx) {
           setCurrentProblemIdx(payload.currentQuestionIndex);
           setIsEliminatedFromCurrent(false);
           setTeacherForcedExplanation(false);
           setGameState(payload.isShowingIntro ? 'STARTING_ROUND' : 'WAITING_FOR_BUZZER');
-        } else if (payload.currentQuestionIndex === currentProblemIdx) {
+          changed = true;
+        } else if (payload.currentQuestionIndex === currentProblemIdx && (payload.currentRoundIndex === undefined || payload.currentRoundIndex === currentRoundIdx)) {
           // Nếu cùng câu nhưng lệch trạng thái (ví dụ: giáo viên đã nhấn hiện câu hỏi nhưng máy học sinh vẫn ở intro)
           if (payload.isShowingIntro === false && gameState === 'STARTING_ROUND') {
              setGameState('WAITING_FOR_BUZZER');
@@ -104,6 +114,13 @@ const GameEngine: React.FC<GameEngineProps> = ({
         setIsEliminatedFromCurrent(false);
         setTeacherForcedExplanation(false);
         setGameState('STARTING_ROUND'); 
+      })
+      .on('broadcast', { event: 'teacher_next_round' }, ({ payload }) => {
+        setCurrentRoundIdx(payload.nextRoundIndex);
+        setCurrentProblemIdx(0);
+        setIsEliminatedFromCurrent(false);
+        setTeacherForcedExplanation(false);
+        setGameState('ROUND_INTRO'); 
       })
       .on('broadcast', { event: 'teacher_reset_buzzer' }, () => {
         buzzerWinnerRef.current = null;
